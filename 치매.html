@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>치매 자가진단</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(to right, #121212, #2c2c54);
+      color: #fff;
+      padding: 20px;
+      transition: all 0.3s ease;
+    }
+    .light-theme {
+      background: linear-gradient(to right, #f0f0f0, #d6d6d6);
+      color: #000;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+      backdrop-filter: blur(10px);
+    }
+    .light-theme .card {
+      background: rgba(255, 255, 255, 0.8);
+      box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+    }
+    button {
+      background: #a18cd1;
+      border: none;
+      padding: 10px 20px;
+      color: #fff;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #6a82fb;
+    }
+    .light-theme button {
+      background: #6a82fb;
+      color: #fff;
+    }
+    canvas {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card" id="questionCard">
+    <h1>치매 자가진단 테스트</h1>
+    <p id="question"></p>
+    <button onclick="answer(1)">예</button>
+    <button onclick="answer(0)">아니오</button>
+  </div>
+
+  <div class="card" id="result" style="display:none"></div>
+  <canvas id="scoreChart" width="300" height="300"></canvas>
+
+  <div id="saveArea" style="display:none; margin-top:20px;">
+    <button onclick="savePDF()">PDF로 저장</button>
+    <button onclick="toggleTheme()">테마 전환</button>
+  </div>
+
+  <script>
+    const questions = [
+      { text: "오늘이 무슨 요일인지 기억하십니까?", category: "시간 지남력" },
+      { text: "지금 몇 시인지 아십니까?", category: "시간 지남력" },
+      { text: "현재 위치를 알고 계십니까?", category: "장소 지남력" },
+      { text: "당신의 주소를 말할 수 있습니까?", category: "장소 지남력" },
+      { text: "당신의 생년월일을 말할 수 있습니까?", category: "개인 정보" },
+      { text: "당신의 나이를 말할 수 있습니까?", category: "개인 정보" },
+      { text: "당신의 전화번호를 기억하십니까?", category: "개인 정보" },
+      { text: "최근에 뉴스에서 본 내용을 기억하십니까?", category: "기억력" },
+      { text: "최근에 만난 사람의 이름을 기억하십니까?", category: "기억력" },
+      { text: "간단한 계산(예: 100-7)을 할 수 있습니까?", category: "주의력" },
+      { text: "간단한 문장을 따라 말할 수 있습니까?", category: "언어능력" },
+      { text: "간단한 명령을 이해하고 따를 수 있습니까?", category: "이해력" },
+      { text: "물건의 이름을 기억하십니까?", category: "기억력" },
+      { text: "예전 일을 잘 기억하십니까?", category: "장기 기억력" },
+      { text: "자주 물건을 어디에 두었는지 잊습니까?", category: "단기 기억력" },
+      { text: "같은 질문을 반복해서 묻습니까?", category: "주의력" },
+      { text: "길을 자주 잊습니까?", category: "지남력" },
+      { text: "시간 감각이 자주 흐려집니까?", category: "시간 지남력" },
+      { text: "계산 능력이 예전보다 떨어졌습니까?", category: "주의력" },
+      { text: "일상적인 일을 수행하는 데 어려움이 있습니까?", category: "일상 기능" }
+    ];
+
+    let current = 0;
+    let score = 0;
+    const categoryScores = {};
+
+    document.getElementById("question").innerText = questions[current].text;
+
+    function answer(val) {
+      score += val;
+      const cat = questions[current].category;
+      if (!categoryScores[cat]) categoryScores[cat] = 0;
+      categoryScores[cat] += val;
+      current++;
+      if (current < questions.length) {
+        document.getElementById("question").innerText = questions[current].text;
+      } else {
+        displayResult();
+      }
+    }
+
+    let scoreChart;
+
+    function displayResult() {
+      document.getElementById("questionCard").style.display = "none";
+
+      let msg = "";
+      if (score >= 20) msg = "치매 위험이 낮은 상태입니다.";
+      else if (score >= 13) msg = "경미한 위험이 존재할 수 있습니다.";
+      else msg = "치매 위험이 높습니다. 전문의의 상담을 권장합니다.";
+
+      document.getElementById("result").style.display = "block";
+      document.getElementById("result").innerHTML = `
+        <h2>전체 점수: ${score} / ${questions.length}</h2>
+        <p>${msg}</p>
+        <h3>카테고리별 점수:</h3>
+        ${Object.keys(categoryScores).map(cat => `<p>${cat}: ${categoryScores[cat]}</p>`).join("")}
+      `;
+
+      const ctx = document.getElementById("scoreChart").getContext("2d");
+      const chartColors = isLightTheme()
+        ? ["#6a82fb", "#ccc"]
+        : ["#a18cd1", "#3c3c4e"];
+
+      if (scoreChart) scoreChart.destroy();
+      scoreChart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: ["점수", "남은 점수"],
+          datasets: [{
+            data: [score, questions.length - score],
+            backgroundColor: chartColors
+          }]
+        },
+        options: {
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      document.getElementById("saveArea").style.display = "block";
+    }
+
+    function isLightTheme() {
+      return document.body.classList.contains("light-theme");
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle("light-theme");
+      if (scoreChart) displayResult();
+    }
+
+    function savePDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.setFontSize(18);
+      doc.text(20, 20, "치매 자가진단 결과보고서");
+      doc.setFontSize(12);
+      doc.text(20, 35, `점수: ${score} / ${questions.length}`);
+
+      const categories = Object.keys(categoryScores);
+      categories.forEach((cat, i) => {
+        const y = 45 + i * 7;
+        doc.text(20, y, `${cat}: ${categoryScores[cat]}`);
+      });
+
+      const canvas = document.getElementById("scoreChart");
+      const chartImage = canvas.toDataURL("image/png", 1.0);
+      doc.addImage(chartImage, "PNG", 120, 30, 70, 70);
+
+      doc.save("dementia_result.pdf");
+    }
+  </script>
+</body>
+</html>
